@@ -1,0 +1,160 @@
+#!/bin/bash
+
+debug=true
+crypted_file=''
+secret_dir="$HOME/"
+
+cipher='aes-256-cbc'
+font='Courier New 10'
+ru='Rezygnacja użytkownika'
+pp=$"\nPonowić próbę?"
+
+usage() {
+    echo "Usage: $0 [-d star_dir] [-f file_do_decrypt]" 1>&2
+    exit 1
+}
+
+while getopts "d:f:" o; do
+    case "${o}" in
+        d) secret_dir=${OPTARG}'/' ;;
+        f) crypted_file=${OPTARG} ;;
+        *) usage ;;
+    esac
+done
+
+if $debug; then
+    echo '################################'
+    echo "secret_dir=$secret_dir"
+    echo "crypted_file=$crypted_file"
+    echo '################################'
+fi
+
+var2tab() {
+    local var="$1"
+    local rval=$2
+    local i
+    local col_heads='|'
+    local col_bar='+'
+    local col_content='|'
+    local content
+    for ((i=1; $i<=${#var}; i++)); do
+        [[ $i -gt 9 ]] && col_heads+=" $i|" || col_heads+=" $i |"
+        col_bar+='---+'
+        col_content+=" ${var:i-1:1} |"
+    done 
+    content=$"$col_heads\n$col_bar\n$col_content\n"
+    eval $rval="'$content'"
+}
+
+get_file() {
+    local rval="$1"
+	local file_filter=""
+	shift
+	until [ -z "$1" ]
+	do
+		file_filter+="$1 "
+		shift
+	done
+	[[ -z "$file_filter" ]] && file_filter="*"
+    local file_name=$(zenity --file-selection --filename=$secret_dir --file-filter="$file_filter")
+    [[ -z "$file_name" ]] && { zenity --info --text="$ru"; exit 1; }
+    eval $rval="'$file_name'"
+}
+
+get_pass() {
+    local rval=$1
+	local pass
+    local pass_array
+	local oIFS
+	pass=$(zenity \
+		--title "Szyfrowanie pliku" \
+		--forms \
+		--text="Wprowadź hasło szyfrujące" \
+		--add-password="Hasło" \
+		--add-password="Powtórz hasło")
+	[[ -z "$pass" ]] && { zenity --info --text="$ru"; exit 1; }
+    if [ $(grep -o '|' <<<"$pass" | grep -c .) -gt 1 ]; then
+        zenity --question  --title="Błędne znaki" --text="Błędne znaki w haśle (znak | jest zabroniony).$pp"
+        [[ $? -eq 0 ]] && return 1 || exit 1
+    fi
+	oIFS=$IFS
+    IFS='|' pass_array=($pass)
+	IFS=$oIFS
+    if [ "${pass_array[0]}" != "${pass_array[1]}" ]; then
+        zenity --question  --title="Niezgodność haseł" --text="Niepoprawnie powtórzone hasło.$pp"
+        [[ $? -eq 0 ]] && return 1 || exit 1
+    fi
+    if [ -z "${pass_array[0]}" ]; then
+        zenity --question  --title="Puste hasło" --text="Hasło nie może być \"puste\".$pp"
+        [[ $? -eq 0 ]] && return 1 || exit 1
+    fi
+    eval $rval="'${pass_array[0]}'"
+}
+
+file_decrypt() {
+    local passwd
+    local cmd
+    local file_contain
+    local display_text
+    local file
+    [[ -n "$crypted_file" ]] && file="$crypted_file" || get_file file "*.enc"
+    passwd=$(zenity --password)
+    [[ -z "$passwd" ]] && exit 2
+    cmd="openssl enc -d -aes-256-cbc -in \"$file\" -k $passwd 2>/dev/null"
+    file_contain=$(eval "$cmd")
+    [[ -z "$file_contain" ]] && { zenity --error --text="Niepoprawne hasło"; exit 2; }
+    var2tab "$file_contain" display_text
+    echo -ne ${display_text} | zenity --title="Top Secret!" --width=1024 --height=300 --text-info  --font="$font"
+}
+
+file_crypt() {
+	local file
+    local passwd
+	local cmd
+    get_file file #"*.txt"
+    get_pass passwd || get_pass passwd
+	echo $passwd
+	cmd="openssl enc -e -$cipher -in \"$file\" -out \"$file.enc\" -salt -k $passwd"
+	echo $cmd
+	eval "$cmd" || { zenity --error --text="Nieznany błąd szyfrowania pliku."; exit 1; }
+    exit
+}
+
+[[ -n "$crypted_file" ]] && { file_decrypt; exit; }
+
+file_crypt
+exit
+
+ans=$(zenity  \
+    --list  \
+    --title "" \
+    --text "Wybierz czynność" \
+    --radiolist  \
+    --hide-header \
+    --column "Wybierz" \
+    --column "hidden" \
+    --column "Czynność" \
+    TRUE "decrypt" "Odszyfruj plik" FALSE "crypt" "Zaszyfruj plik" FALSE "new_crypted" "Nowy zaszyfrowany plik" FALSE "pwchange" "Zmiana hasła do pliku" \
+    --hide-column=2)
+
+case $ans in
+    decrypt)
+        echo "deszyfracja pliku"
+        file_decrypt
+        ;;
+    crypt)
+        echo "szyfrowanie pliku"
+        file_crypt
+        ;;
+	new_crypted)
+		echo "Nowy zaszyfrowany plik"
+		;;
+    pwchange)
+        echo "zmiana hasła do pliku"
+        ;;
+    *)
+        echo "Rezygnacja użytkownika"
+        exit 1
+        ;;
+esac
+
