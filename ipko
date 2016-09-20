@@ -100,7 +100,7 @@ file_decrypt() {
     [[ -n "$crypted_file" ]] && file="$crypted_file" || get_file file "*.enc"
     passwd=$(zenity --password)
     [[ -z "$passwd" ]] && exit 2
-    cmd="openssl enc -d -aes-256-cbc -in \"$file\" -k $passwd 2>/dev/null"
+    cmd="openssl enc -d -$cipher -in \"$file\" -salt -k $passwd 2>/dev/null"
     file_contain=$(eval "$cmd")
     [[ -z "$file_contain" ]] && { zenity --error --text="Niepoprawne hasło"; exit 2; }
     var2tab "$file_contain" display_text
@@ -113,17 +113,17 @@ file_crypt() {
 	local cmd
     get_file file #"*.txt"
     get_pass passwd || get_pass passwd
-	echo $passwd
 	cmd="openssl enc -e -$cipher -in \"$file\" -out \"$file.enc\" -salt -k $passwd"
-	echo $cmd
 	eval "$cmd" || { zenity --error --text="Nieznany błąd szyfrowania pliku."; exit 1; }
+    zenity --question --title "Usunąć niezaszyfrowany plik?" --text="Usunąć plik:\n$file"
+    [[ $? -eq 0 ]] && rm -fv "$file"
     exit
 }
 
 [[ -n "$crypted_file" ]] && { file_decrypt; exit; }
 
-file_crypt
-exit
+#file_crypt
+#exit
 
 ans=$(zenity  \
     --list  \
