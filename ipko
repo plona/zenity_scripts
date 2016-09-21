@@ -58,7 +58,7 @@ get_file() {
 	[[ -z "$file_filter" ]] && file_filter="*"
     echo $file_filter
     local file_name=$(zenity --file-selection --filename=$secret_dir --file-filter="$file_filter")
-    [[ -z "$file_name" ]] && { zenity --info --text="$ru"; exit 1; }
+    [[ -z "$file_name" ]] && { zenity --info --text="$ru"; exit 2; }
     eval $rval="'$file_name'"
 }
 
@@ -110,18 +110,18 @@ get_pass() {
 	[[ -z "$pass" ]] && { zenity --info --text="$ru"; exit 1; }
     if [ $(grep -o '|' <<<"$pass" | grep -c .) -gt 1 ]; then
         zenity --question  --title="Błędne znaki" --text="Błędne znaki w haśle (znak | jest zabroniony).$pp"
-        [[ $? -eq 0 ]] && return 1 || exit 1
+        [[ $? -eq 0 ]] && return 1 || exit 2
     fi
 	oIFS=$IFS
     IFS='|' pass_array=($pass)
 	IFS=$oIFS
     if [ "${pass_array[0]}" != "${pass_array[1]}" ]; then
         zenity --question  --title="Niezgodność haseł" --text="Niepoprawnie powtórzone hasło.$pp"
-        [[ $? -eq 0 ]] && return 1 || exit 1
+        [[ $? -eq 0 ]] && return 1 || exit 2
     fi
     if [ -z "${pass_array[0]}" ]; then
         zenity --question  --title="Puste hasło" --text="Hasło nie może być \"puste\".$pp"
-        [[ $? -eq 0 ]] && return 1 || exit 1
+        [[ $? -eq 0 ]] && return 1 || exit 2
     fi
     eval $rval="'${pass_array[0]}'"
 }
@@ -217,7 +217,7 @@ case $ans in
         ;;
     *)
         echo "Rezygnacja użytkownika"
-        exit 1
+        exit 2
         ;;
 esac
 
