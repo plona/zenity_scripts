@@ -56,9 +56,44 @@ get_file() {
 		shift
 	done
 	[[ -z "$file_filter" ]] && file_filter="*"
+    echo $file_filter
     local file_name=$(zenity --file-selection --filename=$secret_dir --file-filter="$file_filter")
     [[ -z "$file_name" ]] && { zenity --info --text="$ru"; exit 1; }
     eval $rval="'$file_name'"
+}
+
+split_base_ext() {
+    # .file -> '' 'file'
+    # file  -> 'file' ''
+    # file. -> 'file' ''
+    # file.na me.ext ension -> 'file.na me' 'ext ension'
+    local file="$1"
+    local file_base=$2
+    local file_ext=$3
+    local file_array ext base oIFS dots last_char
+
+    last_char=${file: -1}
+    if [ "." = "$last_char" ]; then
+        base=${file:0:-1}
+        ext=''
+    else
+        dots=$(grep -o '\.' <<<"$file" | grep -c .)
+        if [ $dots -eq 0 ]; then
+            base=$file
+            ext=''
+        else
+            oIFS=$IFS
+            IFS='.' file_array=($file)
+            IFS=$oIFS
+            i=$((${#file_array[@]} - 1)) # last element
+            ext=${file_array[$i]}
+            l=${#ext} # ext length
+            base=${file:0:-(($l + 1 ))}
+        fi
+    fi
+
+    eval $file_base="'$base'"
+    eval $file_ext="'$ext'"
 }
 
 get_pass() {
@@ -123,6 +158,7 @@ file_de_en_crypt() {
 			;;
 	esac
 	local file
+    local new_file
     local passwd
 	local cmd
 	local get_pass_ok=1
@@ -170,7 +206,7 @@ case $ans in
 		;;
     decrypt)
         echo "deszyfracja pliku"
-        file_de_en_crypt 'e'
+        file_de_en_crypt 'd'
         ;;
     crypt)
         echo "szyfrowanie pliku"
