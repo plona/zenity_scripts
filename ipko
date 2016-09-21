@@ -91,7 +91,7 @@ get_pass() {
     eval $rval="'${pass_array[0]}'"
 }
 
-file_decrypt() {
+show_pass_file() {
     local passwd
     local cmd
     local file_contain
@@ -107,23 +107,42 @@ file_decrypt() {
     echo -ne ${display_text} | zenity --title="Top Secret!" --width=1024 --height=300 --text-info  --font="$font"
 }
 
-file_crypt() {
+file_de_en_crypt() {
+	local mode=$1
+	local ext
+	case $mode in
+		e) 
+			ext=''
+			;;
+		d) 
+			ext='*.enc'
+			;;
+		*) 
+			zenity --error --text="błąd parametru"
+			exit 1
+			;;
+	esac
 	local file
     local passwd
 	local cmd
-    get_file file #"*.txt"
-    get_pass passwd || get_pass passwd
-	cmd="openssl enc -e -$cipher -in \"$file\" -out \"$file.enc\" -salt -k $passwd"
+	local get_pass_ok=1
+    get_file file $ext
+	until [ $get_pass_ok -eq 0 ]; do
+		get_pass passwd
+		get_pass_ok=$?
+	done
+    #get_pass passwd || get_pass passwd
+	cmd="openssl enc -e -$cipher -in \"$file\" -out \"$file.enc\" -salt -k \"$passwd\""
+	echo $cmd
 	eval "$cmd" || { zenity --error --text="Nieznany błąd szyfrowania pliku."; exit 1; }
     zenity --question --title "Usunąć niezaszyfrowany plik?" --text="Usunąć plik:\n$file"
-    [[ $? -eq 0 ]] && rm -fv "$file"
-    exit
+    if [ $? -eq 0 ]; then
+		cmd="rm -fv \"$file\""
+		zenity --info --text="$(eval ${cmd})"
+	fi
 }
 
-[[ -n "$crypted_file" ]] && { file_decrypt; exit; }
-
-#file_crypt
-#exit
+[[ -n "$crypted_file" ]] && { show_pass_file; exit; }
 
 ans=$(zenity  \
     --list  \
@@ -134,21 +153,29 @@ ans=$(zenity  \
     --column "Wybierz" \
     --column "hidden" \
     --column "Czynność" \
-    TRUE "decrypt" "Odszyfruj plik" FALSE "crypt" "Zaszyfruj plik" FALSE "new_crypted" "Nowy zaszyfrowany plik" FALSE "pwchange" "Zmiana hasła do pliku" \
+    TRUE "show_pass_file" "Wyświetl hasło z pliku" \
+	FALSE "new_pass_file" "Nowy zaszyfrowany plik z hasłem" \
+    FALSE "decrypt" "Odszyfruj plik" \
+	FALSE "crypt" "Zaszyfruj plik" \
+	FALSE "pwchange" "Zmiana hasła do pliku" \
     --hide-column=2)
 
 case $ans in
+    show_pass_file)
+        echo "pokaź hasło"
+        show_pass_file
+        ;;
+	new_pass_file)
+		echo "Nowy zaszyfrowany plik"
+		;;
     decrypt)
         echo "deszyfracja pliku"
-        file_decrypt
+        file_de_en_crypt 'e'
         ;;
     crypt)
         echo "szyfrowanie pliku"
-        file_crypt
+        file_de_en_crypt 'e'
         ;;
-	new_crypted)
-		echo "Nowy zaszyfrowany plik"
-		;;
     pwchange)
         echo "zmiana hasła do pliku"
         ;;
