@@ -1,0 +1,49 @@
+#!/bin/bash - 
+#===============================================================================
+#
+#          FILE: tmouse
+# 
+#         USAGE: ./tmouse [on|off]
+# 
+#   DESCRIPTION: 
+# 
+#       OPTIONS: ---
+#  REQUIREMENTS: ---
+#          BUGS: ---
+#         NOTES: ---
+#        AUTHOR: Marek Płonka (marekpl), marek.plonka@nask.pl
+#  ORGANIZATION: NASK
+#       CREATED: 22.09.2016 13:01:38
+#      REVISION:  ---
+#===============================================================================
+
+set -o nounset                              # Treat unset variables as an error
+set -e
+
+tm_options=('mouse-select-pane' 'mouse-resize-pane' 'mouse-select-window')
+
+switch_mouse() {
+    tm_state=$(tmux show-option -qv $option)
+    if [ -v $tm_state ]; then
+        tmux set -q $option on
+    else
+        case $tm_state in
+            on) tmux set -q $option off ;;
+            off) tmux set -q $option on ;;
+            *) echo "can not happen .." ;;
+        esac    # --- end of case ---
+    fi
+}
+
+for option in ${tm_options[@]}; do
+    if [ $# -ge 1 ]; then
+        case $1 in
+            on|off) tmux set $option $1 ;;
+            *) switch_mouse ;;
+        esac
+    else
+        switch_mouse
+    fi
+done
+
+unset -f switch_mouse
