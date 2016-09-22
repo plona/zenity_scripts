@@ -12,7 +12,7 @@ pp=$"\nPonowić próbę?"
 
 
 usage() {
-#    echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[*]}" >&2
+    echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[*]}" >&2
     echo "Usage: $0 [-d star_dir] [-f file_do_decrypt]" 1>&2
     exit 1
 }
@@ -27,16 +27,15 @@ done
 
 if $debug; then
     echo $dbgsep
-    echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[*]}" >&2
-    echo "secret_dir=$secret_dir"
-    echo "crypted_file=$crypted_file"
+    echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" >&2
+    echo "secret_dir = $secret_dir"
+    echo "crypted_file = $crypted_file"
     echo $dbgsep
 fi
 
 var2tab() {
     local var="$1"
     local rval=$2
-    local i
     local col_heads='|'
     local col_bar='+'
     local col_content='|'
@@ -89,16 +88,16 @@ split_base_ext() {
             oIFS=$IFS
             IFS='.' file_array=($file)
             IFS=$oIFS
-            i=$((${#file_array[@]} - 1)) # last element
+            i=$((${#file_array[@]} - 1))        # last element
             ext=${file_array[$i]}
-            l=${#ext} # ext length
+            l=${#ext}                           # ext length
             base=${file:0:-(($l + 1 ))}
         fi
     fi
 
     if $debug; then
         echo $dbgsep
-        echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[*]}" >&2
+        echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" >&2
         echo "file = $file"
         echo "base = $base"
         echo "ext = $ext"
@@ -109,63 +108,63 @@ split_base_ext() {
 
 get_pass() {
     local rval=$1
-    local pass
-    local pass_array
-    local oIFS
+    local pass pass_array oIFS
+
     pass=$(zenity \
         --title "Szyfrowanie pliku" \
         --forms \
         --text="Wprowadź hasło szyfrujące" \
         --add-password="Hasło" \
         --add-password="Powtórz hasło")
+
     [[ -z "$pass" ]] && { zenity --info --text="$ru"; exit 1; }
+
     if [ $(grep -o '|' <<<"$pass" | grep -c .) -gt 1 ]; then
         zenity --question  --title="Błędne znaki" --text="Błędne znaki w haśle (znak | jest zabroniony).$pp"
         [[ $? -eq 0 ]] && return 1 || exit 2
     fi
+
     oIFS=$IFS
     IFS='|' pass_array=($pass)
     IFS=$oIFS
+
     if [ "${pass_array[0]}" != "${pass_array[1]}" ]; then
         zenity --question  --title="Niezgodność haseł" --text="Niepoprawnie powtórzone hasło.$pp"
         [[ $? -eq 0 ]] && return 1 || exit 2
     fi
+
     if [ -z "${pass_array[0]}" ]; then
         zenity --question  --title="Puste hasło" --text="Hasło nie może być \"puste\".$pp"
         [[ $? -eq 0 ]] && return 1 || exit 2
     fi
+
     eval $rval="'${pass_array[0]}'"
 }
 
 show_pass_file() {
-    local passwd
-    local cmd
-    local file_contain
-    local display_text
-    local file
+    local passwd cmd file_contain display_text file
+
     [[ -n "$crypted_file" ]] && file="$crypted_file" || get_file file "*.enc"
+
     passwd=$(zenity --password)
     [[ -z "$passwd" ]] && exit 2
-    cmd="openssl enc -d -$cipher -in \"$file\" -salt -k $passwd 2>/dev/null"
+
+    cmd="openssl enc -d -$cipher -in \"$file\" -salt -k \"$passwd\" 2>/dev/null"
     file_contain=$(eval "$cmd")
     [[ -z "$file_contain" ]] && { zenity --error --text="Niepoprawne hasło"; exit 2; }
+
     var2tab "$file_contain" display_text
     echo -ne ${display_text} | zenity --title="Top Secret!" --width=1024 --height=300 --text-info  --font="$font"
 }
 
 file_de_en_crypt() {
     local mode=$1
-    local ext
-    local file
-    local new_file
-    local passwd
-    local cmd
+    local ext file new_file selected_file passwd cmd
     local get_pass_ok=1
 
     case $mode in
         e) 
             ext=''
-            new_file="$file.enc"
             ;;
         d) 
             ext='*.enc'
@@ -178,20 +177,29 @@ file_de_en_crypt() {
 
     get_file file $ext
     [[ "$mode" = "d" ]] && split_base_ext "$file" new_file dummy || new_file="$file.enc"
-    #until [ $get_pass_ok -eq 0 ]; do
-    #    get_pass passwd
-    #    get_pass_ok=$?
-    #done
-
-    echo $mode $file $new_file
+#    until [ $get_pass_ok -eq 0 ]; do
+#        get_pass passwd
+#        get_pass_ok=$?
+#    done
 
     if [ -e "$new_file" ] ; then
-        zenity --question \
-            --title "Plik istnieje" \
-            --text "Plik:\n$new_file\nistnieje. Zastąpić?"
-
+        selected_file=$(zenity --file-selection \
+                        --filename="$new_file" \
+                        --save \
+                        --confirm-overwrite)
+        [[ $? -eq 0 ]] && new_file="$selected_file" || { zenity --info --text="$ru"; exit 2; }
     fi
-    cmd="openssl enc -e -$cipher -in \"$file\" -out \"$file.enc\" -salt -k \"$passwd\""
+
+    if $debug; then
+        echo $dbgsep
+        echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" >&2
+        echo "mode = $mode"
+        echo "file = $file"
+        echo "new_file = $new_file"
+        echo $dbgsep
+    fi
+
+    cmd="openssl enc -$mode -$cipher -in \"$file\" -out \"$new_file\" -salt -k \"$passwd\""
     echo $cmd
     exit
     eval "$cmd" || { zenity --error --text="Nieznany błąd szyfrowania pliku."; exit 1; }
