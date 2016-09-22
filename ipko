@@ -1,6 +1,7 @@
 #!/bin/bash
 
 debug=true
+dbgsep='################################'
 crypted_file=''
 secret_dir="$HOME/"
 
@@ -9,7 +10,9 @@ font='Courier New 10'
 ru='Rezygnacja użytkownika'
 pp=$"\nPonowić próbę?"
 
+
 usage() {
+    echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[*]}" >&2
     echo "Usage: $0 [-d star_dir] [-f file_do_decrypt]" 1>&2
     exit 1
 }
@@ -23,10 +26,10 @@ while getopts "d:f:" o; do
 done
 
 if $debug; then
-    echo '################################'
+    echo $dbgsep
     echo "secret_dir=$secret_dir"
     echo "crypted_file=$crypted_file"
-    echo '################################'
+    echo $dbgsep
 fi
 
 var2tab() {
@@ -92,6 +95,13 @@ split_base_ext() {
         fi
     fi
 
+    if $debug; then
+        echo $dbgsep
+        echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[*]}" >&2
+        echo "file = $file"
+        echo "base = $base"
+        echo "ext = $ext"
+    fi
     eval $file_base="'$base'"
     eval $file_ext="'$ext'"
 }
@@ -145,29 +155,37 @@ show_pass_file() {
 file_de_en_crypt() {
 	local mode=$1
 	local ext
+	local file
+    local new_file
+    local passwd
+	local cmd
+	local get_pass_ok=1
+
 	case $mode in
 		e) 
 			ext=''
+            new_file="$file.enc"
 			;;
 		d) 
 			ext='*.enc'
+            #split_base_ext "$file" new_file dummy
 			;;
 		*) 
 			zenity --error --text="błąd parametru"
 			exit 1
 			;;
 	esac
-	local file
-    local new_file
-    local passwd
-	local cmd
-	local get_pass_ok=1
+
     get_file file $ext
-	until [ $get_pass_ok -eq 0 ]; do
-		get_pass passwd
-		get_pass_ok=$?
-	done
-    #get_pass passwd || get_pass passwd
+    [[ "$mode" = "d" ]] && split_base_ext "$file" new_file dummy
+	#until [ $get_pass_ok -eq 0 ]; do
+    #	get_pass passwd
+	#	get_pass_ok=$?
+	#done
+
+    echo $mode $file $new_file
+    exit
+
 	cmd="openssl enc -e -$cipher -in \"$file\" -out \"$file.enc\" -salt -k \"$passwd\""
 	echo $cmd
 	eval "$cmd" || { zenity --error --text="Nieznany błąd szyfrowania pliku."; exit 1; }
@@ -198,7 +216,7 @@ ans=$(zenity  \
 
 case $ans in
     show_pass_file)
-        echo "pokaź hasło"
+        echo "pokaż hasło"
         show_pass_file
         ;;
 	new_pass_file)
