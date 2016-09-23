@@ -1,5 +1,4 @@
 #!/bin/bash
- # :TODO:23.09.2016 15:20:56:marekpl: funkcja get_pass, tryby 1x hasło - deszyfracja, 2x hasło - szyfrowanie, 3x hasło - zmiana hasła
 
 debug=true
 dbgsep='################################'
@@ -110,23 +109,24 @@ split_base_ext() {
 get_pass() {
     local pass1=$1                              # hasło deszyfrujące
     local pass2=$2                              # hasło szyfrujące
-    local mode=$3                               # tryb pracy [1|2/4|3]
-    local pass pass_array oIFS title msg
+    local mode=$3                               # tryb pracy [1|2|3|4]
+    local pass pass_array oIFS                  # 
 
-
-    case mode in
-        1)
+    case $mode in
+        1)                                      # hasło
+            pass=$(zenity --password)
             ;;
-        2|4)
-            if [ $mode -eq 2 ]; then
-                title="Szyfrowanie"
-                msg="szyfrujące"
-            else
-                title="Deszyfracja"
-                msg="deszyfrujące"
-            fi
+        2)                                      # nowe hasło + powtórzenie
+            pass=$(zenity \
+                --title "Szyfrowanie pliku" \
+                --forms \
+                --text="Wprowadź hasło szyfrujące" \
+                --add-password="Hasło" \
+                --add-password="Powtórz hasło")
             ;;
-        3)
+        3)                                      # stare hasło; nowe hasło + powtórzenie
+            ;;
+        4)                                      # treść pliku; nowe hasło + powtórzenie
             ;;
         *)
             zenity --error --text="${FUNCNAME[*]}: błąd parametru"
@@ -134,15 +134,15 @@ get_pass() {
             ;;
     esac
 
-    pass=$(zenity \
-        --title "Szyfrowanie $title" \
-        --forms \
-        --text="Wprowadź hasło $msg" \
-        --add-password="Hasło" \
-        --add-password="Powtórz hasło")
-
     [[ -z "$pass" ]] && { zenity --info --text="$ru"; exit 2; }
 
+    if [ $mode -eq 1 ]; then
+        eval $pass1="'$pass'"
+        return
+    fi
+#-------------------------------------------------------------------------------
+# 
+#-------------------------------------------------------------------------------
     if [ $(grep -o '|' <<<"$pass" | grep -c .) -gt 1 ]; then
         zenity --question  --title="Błędne znaki" --text="Błędne znaki w haśle (znak | jest zabroniony).$pp"
         [[ $? -eq 0 ]] && return 1 || exit 2
@@ -170,12 +170,10 @@ show_pass_file() {
 
     [[ -n "$crypted_file" ]] && file="$crypted_file" || get_file file "*.enc"
 
-    passwd=$(zenity --password)
-    [[ -z "$passwd" ]] && exit 2
+    get_pass passwd dummy 1
 
     cmd="openssl enc -d -$cipher -in \"$file\" -salt -k \"$passwd\" 2>/dev/null"
-    file_contain=$(eval "$cmd")
-    [[ -z "$file_contain" ]] && { zenity --error --text="Niepoprawne hasło"; exit 2; }
+    file_contain=$(eval "$cmd") || { zenity --error --text="Niepoprawne hasło"; exit 2; }
 
     var2tab "$file_contain" display_text
     echo -ne ${display_text} | zenity --title="Top Secret!" --width=1024 --height=300 --text-info  --font="$font"
@@ -184,7 +182,6 @@ show_pass_file() {
 file_de_en_crypt() {
     local mode=$1
     local ext file new_file selected_file passwd cmd msg1 msg2 pass_mode
-    local get_pass_ok=1
 
     case $mode in
         e) 
@@ -197,7 +194,7 @@ file_de_en_crypt() {
             ext='*.enc'
             msg1='deszyfracji'
             msg2='zaszyfrowany'
-            pass_mode=4
+            pass_mode=1
             ;;
         *) 
             zenity --error --text="${FUNCNAME[*]}: błąd parametru"
@@ -206,11 +203,17 @@ file_de_en_crypt() {
     esac
 
     get_file file $ext
-    [[ "$mode" = "d" ]] && split_base_ext "$file" new_file dummy || new_file="$file.enc"
-    until [ $get_pass_ok -eq 0 ]; do
-        get_pass dummy passwd $pass_mode
-        get_pass_ok=$?
-    done
+    if [ $mode == "d" ]; then                   # deszyfracja
+        split_base_ext "$file" new_file dummy
+        get_pass passwd dummy 1
+    else                                        # szyfrowanie
+        new_file="$file.enc"
+        local get_pass_ok=1
+        until [ $get_pass_ok -eq 0 ]; do
+            get_pass dummy passwd $pass_mode
+            get_pass_ok=$?
+        done
+    fi
 
     if [ -e "$new_file" ] ; then
         selected_file=$(zenity --file-selection \
@@ -230,9 +233,12 @@ file_de_en_crypt() {
     fi
 
     cmd="openssl enc -$mode -$cipher -in \"$file\" -out \"$new_file\" -salt -k \"$passwd\""
-    echo $cmd
-#    exit
+#-------------------------------------------------------------------------------
+echo $cmd
+#  # :TODO:23.09.2016 21:46:12:marekpl: przy deszyfracji sprawdzać kod wyjścia i inny komunikat
+#-------------------------------------------------------------------------------
     eval "$cmd" || { zenity --error --text="Nieznany błąd $msg1 pliku."; exit 1; }
+
     zenity --question --title "Usunąć $msg2 plik?" --text="Usunąć plik:\n$file"
     if [ $? -eq 0 ]; then
         cmd="rm -fv \"$file\""
