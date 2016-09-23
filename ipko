@@ -231,7 +231,9 @@ ans=$(zenity  \
     FALSE "decrypt" "Odszyfruj plik" \
     FALSE "crypt" "Zaszyfruj plik" \
     FALSE "pwchange" "Zmiana hasła do pliku" \
-    --hide-column=2)
+    --hide-column=2 \
+    --width=350 \
+    --height=200)
 
 case $ans in
     show_pass_file)
