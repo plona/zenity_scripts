@@ -1,4 +1,5 @@
 #!/bin/bash
+ # :TODO:23.09.2016 15:20:56:marekpl: funkcja get_pass, tryby 1x hasło - deszyfracja, 2x hasło - szyfrowanie, 3x hasło - zmiana hasła
 
 debug=true
 dbgsep='################################'
@@ -159,15 +160,19 @@ show_pass_file() {
 
 file_de_en_crypt() {
     local mode=$1
-    local ext file new_file selected_file passwd cmd
+    local ext file new_file selected_file passwd cmd msg1 msg2
     local get_pass_ok=1
 
     case $mode in
         e) 
             ext=''
+            msg1='szyfrowania'
+            msg2='niezaszyfrowany'
             ;;
         d) 
             ext='*.enc'
+            msg1='deszyfracji'
+            msg2='zaszyfrowany'
             ;;
         *) 
             zenity --error --text="błąd parametru"
@@ -177,10 +182,10 @@ file_de_en_crypt() {
 
     get_file file $ext
     [[ "$mode" = "d" ]] && split_base_ext "$file" new_file dummy || new_file="$file.enc"
-#    until [ $get_pass_ok -eq 0 ]; do
-#        get_pass passwd
-#        get_pass_ok=$?
-#    done
+    until [ $get_pass_ok -eq 0 ]; do
+        get_pass passwd
+        get_pass_ok=$?
+    done
 
     if [ -e "$new_file" ] ; then
         selected_file=$(zenity --file-selection \
@@ -201,9 +206,9 @@ file_de_en_crypt() {
 
     cmd="openssl enc -$mode -$cipher -in \"$file\" -out \"$new_file\" -salt -k \"$passwd\""
     echo $cmd
-    exit
-    eval "$cmd" || { zenity --error --text="Nieznany błąd szyfrowania pliku."; exit 1; }
-    zenity --question --title "Usunąć niezaszyfrowany plik?" --text="Usunąć plik:\n$file"
+#    exit
+    eval "$cmd" || { zenity --error --text="Nieznany błąd $msg1 pliku."; exit 1; }
+    zenity --question --title "Usunąć $msg2 plik?" --text="Usunąć plik:\n$file"
     if [ $? -eq 0 ]; then
         cmd="rm -fv \"$file\""
         zenity --info --text="$(eval ${cmd})"
@@ -221,7 +226,7 @@ ans=$(zenity  \
     --column "Wybierz" \
     --column "hidden" \
     --column "Czynność" \
-    TRUE "show_pass_file" "Wyświetl hasło z pliku" \
+    TRUE "show_pass_file" "Wyświetl hasło z zaszyfrowanego pliku" \
     FALSE "new_pass_file" "Nowy zaszyfrowany plik z hasłem" \
     FALSE "decrypt" "Odszyfruj plik" \
     FALSE "crypt" "Zaszyfruj plik" \

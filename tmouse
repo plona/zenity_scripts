@@ -5,12 +5,12 @@
 # 
 #         USAGE: ./tmouse [on|off]
 # 
-#   DESCRIPTION: 
+#   DESCRIPTION: switch mouse on/off in current tmux session
 # 
 #       OPTIONS: ---
 #  REQUIREMENTS: ---
 #          BUGS: ---
-#         NOTES: ---
+#         NOTES: modifying tm_options array may be necessary depend on tmux ver.
 #        AUTHOR: Marek Płonka (marekpl), marek.plonka@nask.pl
 #  ORGANIZATION: NASK
 #       CREATED: 22.09.2016 13:01:38
