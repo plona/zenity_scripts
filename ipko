@@ -108,17 +108,40 @@ split_base_ext() {
 }
 
 get_pass() {
-    local rval=$1
-    local pass pass_array oIFS
+    local pass1=$1                              # hasło deszyfrujące
+    local pass2=$2                              # hasło szyfrujące
+    local mode=$3                               # tryb pracy [1|2/4|3]
+    local pass pass_array oIFS title msg
+
+
+    case mode in
+        1)
+            ;;
+        2|4)
+            if [ $mode -eq 2 ]; then
+                title="Szyfrowanie"
+                msg="szyfrujące"
+            else
+                title="Deszyfracja"
+                msg="deszyfrujące"
+            fi
+            ;;
+        3)
+            ;;
+        *)
+            zenity --error --text="${FUNCNAME[*]}: błąd parametru"
+            exit 1
+            ;;
+    esac
 
     pass=$(zenity \
-        --title "Szyfrowanie pliku" \
+        --title "Szyfrowanie $title" \
         --forms \
-        --text="Wprowadź hasło szyfrujące" \
+        --text="Wprowadź hasło $msg" \
         --add-password="Hasło" \
         --add-password="Powtórz hasło")
 
-    [[ -z "$pass" ]] && { zenity --info --text="$ru"; exit 1; }
+    [[ -z "$pass" ]] && { zenity --info --text="$ru"; exit 2; }
 
     if [ $(grep -o '|' <<<"$pass" | grep -c .) -gt 1 ]; then
         zenity --question  --title="Błędne znaki" --text="Błędne znaki w haśle (znak | jest zabroniony).$pp"
@@ -139,7 +162,7 @@ get_pass() {
         [[ $? -eq 0 ]] && return 1 || exit 2
     fi
 
-    eval $rval="'${pass_array[0]}'"
+    eval $pass2="'${pass_array[0]}'"
 }
 
 show_pass_file() {
@@ -160,7 +183,7 @@ show_pass_file() {
 
 file_de_en_crypt() {
     local mode=$1
-    local ext file new_file selected_file passwd cmd msg1 msg2
+    local ext file new_file selected_file passwd cmd msg1 msg2 pass_mode
     local get_pass_ok=1
 
     case $mode in
@@ -168,14 +191,16 @@ file_de_en_crypt() {
             ext=''
             msg1='szyfrowania'
             msg2='niezaszyfrowany'
+            pass_mode=2
             ;;
         d) 
             ext='*.enc'
             msg1='deszyfracji'
             msg2='zaszyfrowany'
+            pass_mode=4
             ;;
         *) 
-            zenity --error --text="błąd parametru"
+            zenity --error --text="${FUNCNAME[*]}: błąd parametru"
             exit 1
             ;;
     esac
@@ -183,7 +208,7 @@ file_de_en_crypt() {
     get_file file $ext
     [[ "$mode" = "d" ]] && split_base_ext "$file" new_file dummy || new_file="$file.enc"
     until [ $get_pass_ok -eq 0 ]; do
-        get_pass passwd
+        get_pass dummy passwd $pass_mode
         get_pass_ok=$?
     done
 
