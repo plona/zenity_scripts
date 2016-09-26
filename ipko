@@ -6,6 +6,7 @@ crypted_file=''
 secret_dir="$HOME/"
 
 cipher='aes-256-cbc'
+field_sep="$(printf "\t")"
 font='Courier New 10'
 ru='Rezygnacja użytkownika'
 pp=$"\nPonowić próbę?"
@@ -32,6 +33,11 @@ if $debug; then
     echo "crypted_file = $crypted_file"
     echo $dbgsep
 fi
+
+giveup() {
+    zenity --info --text="$ru"
+    exit 2
+}
 
 var2tab() {
     local var="$1"
@@ -110,7 +116,7 @@ get_pass() {
     local pass1=$1                              # hasło deszyfrujące
     local pass2=$2                              # hasło szyfrujące
     local mode=$3                               # tryb pracy [1|2|3|4]
-    local pass pass_array oIFS                  # 
+    local pass pass_array field1 field2 field3 oIFS pipes
 
     case $mode in
         1)                                      # hasło
@@ -122,20 +128,47 @@ get_pass() {
                 --forms \
                 --text="Wprowadź hasło szyfrujące" \
                 --add-password="Hasło" \
-                --add-password="Powtórz hasło")
+                --add-password="Powtórz hasło" \
+                --separator="$field_sep")
             ;;
         3)                                      # stare hasło; nowe hasło + powtórzenie
+            pass=$(zenity \
+                --title "Zmiana hasła" \
+                --forms \
+                --text="Zmiana hasła do pliku" \
+                --add-password="Stare hasło" \
+                --add-password="Nowe hasło" \
+                --add-password="Powtórz nowe hasło" \
+                --separator="$field_sep")
             ;;
         4)                                      # treść pliku; nowe hasło + powtórzenie
+            pass=$(zenity \
+                --title "Zaszyfruj treść" \
+                --forms \
+                --text="Nowy zaszyfrowany plik z hasłem" \
+                --add-entry="Treść do zaszyfrowania" \
+                --add-password="Hasło" \
+                --add-password="Powtórz hasło" \
+                --separator="$field_sep")
             ;;
         *)
             zenity --error --text="${FUNCNAME[*]}: błąd parametru"
             exit 1
             ;;
     esac
+    [[ $? -eq 0 ]] || giveup
 
-    [[ -z "$pass" ]] && { zenity --info --text="$ru"; exit 2; }
-
+#-------------------------------------------------------------------------------
+echo "[$pass]"
+oIFS="$IFS"
+IFS="$field_sep" test_array=($pass)
+IFS="$oIFS"
+echo ${test_array[@]}
+for el in ${test_array[@]}; do
+    echo $el
+done
+exit
+#-------------------------------------------------------------------------------
     if [ $mode -eq 1 ]; then
         eval $pass1="'$pass'"
         return
@@ -143,6 +176,7 @@ get_pass() {
 #-------------------------------------------------------------------------------
 # 
 #-------------------------------------------------------------------------------
+    pipes=$(grep -o '|' <<<"$pass" | grep -c .)
     if [ $(grep -o '|' <<<"$pass" | grep -c .) -gt 1 ]; then
         zenity --question  --title="Błędne znaki" --text="Błędne znaki w haśle (znak | jest zabroniony).$pp"
         [[ $? -eq 0 ]] && return 1 || exit 2
@@ -186,13 +220,13 @@ file_de_en_crypt() {
     case $mode in
         e) 
             ext=''
-            msg1='szyfrowania'
+            msg1='Nieznany błąd szyfrowania pliku.'
             msg2='niezaszyfrowany'
             pass_mode=2
             ;;
         d) 
             ext='*.enc'
-            msg1='deszyfracji'
+            msg1="Błędne hasło lub\nnieznany błąd deszyfracji pliku."
             msg2='zaszyfrowany'
             pass_mode=1
             ;;
@@ -237,7 +271,7 @@ file_de_en_crypt() {
 echo $cmd
 #  # :TODO:23.09.2016 21:46:12:marekpl: przy deszyfracji sprawdzać kod wyjścia i inny komunikat
 #-------------------------------------------------------------------------------
-    eval "$cmd" || { zenity --error --text="Nieznany błąd $msg1 pliku."; exit 1; }
+    eval "$cmd" || { zenity --error --text="$msg1"; exit 1; }
 
     zenity --question --title "Usunąć $msg2 plik?" --text="Usunąć plik:\n$file"
     if [ $? -eq 0 ]; then
@@ -247,6 +281,11 @@ echo $cmd
 }
 
 [[ -n "$crypted_file" ]] && { show_pass_file; exit; }
+#-------------------------------------------------------------------------------
+# 
+get_pass op np 4
+exit
+#-------------------------------------------------------------------------------
 
 ans=$(zenity  \
     --list  \
