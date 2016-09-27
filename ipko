@@ -1,12 +1,15 @@
 #!/bin/bash
 
+FUNCNAME=''
+source 'lib.trap.sh'
+
 debug=true
 dbgsep='################################'
 crypted_file=''
 secret_dir="$HOME/"
 
 cipher='aes-256-cbc'
-field_sep="$(printf "\t")"
+field_sep="$(printf '\t')"
 font='Courier New 10'
 ru='Rezygnacja użytkownika'
 pp=$"\nPonowić próbę?"
@@ -115,8 +118,8 @@ split_base_ext() {
 get_pass() {
     local pass1=$1                              # hasło deszyfrujące
     local pass2=$2                              # hasło szyfrujące
-    local mode=$3                               # tryb pracy [1|2|3|4]
-    local pass pass_array field1 field2 field3 oIFS pipes
+    local -r mode=$3                               # tryb pracy [1|2|3|4]
+    local pass pass_array field1 field2 field3 oIFS tabs
 
     case $mode in
         1)                                      # hasło
@@ -159,15 +162,14 @@ get_pass() {
     [[ $? -eq 0 ]] || giveup
 
 #-------------------------------------------------------------------------------
-echo "[$pass]"
-oIFS="$IFS"
-IFS="$field_sep" test_array=($pass)
-IFS="$oIFS"
-echo ${test_array[@]}
-for el in ${test_array[@]}; do
-    echo $el
-done
-exit
+#echo "[$pass]"
+#oIFS="$IFS"
+#IFS="$field_sep" test_array=($pass)
+#IFS="$oIFS"
+#echo ${test_array[@]}
+#for el in ${test_array[@]}; do
+#    echo $el
+#done
 #-------------------------------------------------------------------------------
     if [ $mode -eq 1 ]; then
         eval $pass1="'$pass'"
@@ -176,16 +178,30 @@ exit
 #-------------------------------------------------------------------------------
 # 
 #-------------------------------------------------------------------------------
-    pipes=$(grep -o '|' <<<"$pass" | grep -c .)
-    if [ $(grep -o '|' <<<"$pass" | grep -c .) -gt 1 ]; then
-        zenity --question  --title="Błędne znaki" --text="Błędne znaki w haśle (znak | jest zabroniony).$pp"
-        [[ $? -eq 0 ]] && return 1 || exit 2
-    fi
+#    if [ $(grep -o '|' <<<"$pass" | grep -c .) -gt 1 ]; then
+#        zenity --question  --title="Błędne znaki" --text="Błędne znaki w haśle (znak | jest zabroniony).$pp"
+#        [[ $? -eq 0 ]] && return 1 || exit 2
+#    fi
 
+    tabs=$(grep -o "$field_sep" <<<"$pass" | grep -c .)
     oIFS=$IFS
     IFS='|' pass_array=($pass)
+    IFS="$field_sep" test_array=($pass)
     IFS=$oIFS
 
+    mode=1
+    case $mode in
+        2)                                      # nowe hasło + powtórzenie
+            ;;
+        3)                                      # stare hasło; nowe hasło + powtórzenie
+            ;;
+        4)                                      # treść pliku; nowe hasło + powtórzenie
+            ;;
+        *)
+            zenity --error --text="${FUNCNAME[*]}:\nbłąd wewnętrzny - zmiana parametru"
+            exit 1
+            ;;
+    esac
     if [ "${pass_array[0]}" != "${pass_array[1]}" ]; then
         zenity --question  --title="Niezgodność haseł" --text="Niepoprawnie powtórzone hasło.$pp"
         [[ $? -eq 0 ]] && return 1 || exit 2
