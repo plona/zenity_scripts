@@ -1,16 +1,45 @@
 #!/bin/bash
 
+#-------------------------------------------------------------------------------
+# error handling
+#-------------------------------------------------------------------------------
 stderr_log="/dev/shm/stderr.log.$$"
 exec 2>"$stderr_log"
 
 exit_handler() {
-#    zenity --error --text="Wystąpił błąd wewnętrzny.\nZostanie wyświetlony opis błędu"
+#    echo "exit code $?"
+    exit_code=$?
+    if [ $exit_code -ne 3 ]; then
     zenity --text-info --title="Wystąpił błąd wewnętrzny:" --width=600 --height=300 --filename="$stderr_log"
+    rm -fv "$stderr_log"
+    else
+echo "exit_code $exit_code"
+return
+    fi
 }
 trap exit_handler EXIT
 trap exit ERR
 
-debug=false
+exit_err() {
+    local msg=${1:-"Nieopisany błąd.\nProgram zostanie zakończony"}
+    trap '' ERR
+    trap '' EXIT
+    zenity --error --text="$msg"
+    exit 1
+}
+
+give_up() {
+    local -r ru='Rezygnacja użytkownika'
+    trap '' ERR
+    trap '' EXIT
+    [[ $# -eq 0 ]] && zenity --info --text="$ru"
+    exit 2
+}
+
+#-------------------------------------------------------------------------------
+# global vars
+#-------------------------------------------------------------------------------
+debug=true
 dbgsep='################################'
 crypted_file=''
 secret_dir="$HOME/"
@@ -20,7 +49,7 @@ field_sep="$(printf '\t')"
 font='Courier New 10'
 
 usage() {
-    echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[*]}" >&2
+    echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[0]}" >&2
     echo "Usage: $0 [-d star_dir] [-f file_do_decrypt]" 1>&2
     exit 1
 }
@@ -32,27 +61,25 @@ while getopts "d:f:" o; do
         *) usage ;;
     esac
 done
+shift $(($OPTIND-1))
 
 if $debug; then
     echo $dbgsep
-    echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" >&2
+    echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" #>&2
     echo "secret_dir = $secret_dir"
     echo "crypted_file = $crypted_file"
     echo $dbgsep
 fi
 
-giveup() {
-    local ru='Rezygnacja użytkownika'
-    zenity --info --text="$ru"
-    exit 2
-}
-
+#-------------------------------------------------------------------------------
+# functions
+#-------------------------------------------------------------------------------
 var2tab() {
     local var="$1"
     local rval=$2
-    local col_heads='|'
-    local col_bar='+'
-    local col_content='|'
+    local -r col_heads='|'
+    local -r col_bar='+'
+    local -r col_content='|'
     local content
     for ((i=1; $i<=${#var}; i++)); do
         [[ $i -gt 9 ]] && col_heads+=" $i|" || col_heads+=" $i |"
@@ -111,7 +138,7 @@ split_base_ext() {
 
     if $debug; then
         echo $dbgsep
-        echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" >&2
+        echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" #>&2
         echo "file = $file"
         echo "base = $base"
         echo "ext = $ext"
@@ -121,11 +148,11 @@ split_base_ext() {
 }
 
 get_pass() {
-    local pass1=$1                              # hasło deszyfrujące
-    local pass2=$2                              # hasło szyfrujące
-    local -r mode=$3                               # tryb pracy [1|2|3|4]
+    local pass1=$1                              # hasło deszyfrujące (1,3) lub treść do zaszyfrowania (4)
+    local pass2=$2                              # hasło szyfrujące (2,4)
+    local -r mode=$3                            # tryb pracy [1|2|3|4]
     local pass pass_array field1 field2 field3 oIFS tabs
-    local pp=$"\nPonowić próbę?"
+    local -r pp=$"\nPonowić próbę?"
 
     case $mode in
         1)                                      # hasło
@@ -138,7 +165,7 @@ get_pass() {
                 --text="Wprowadź hasło szyfrujące" \
                 --add-password="Hasło" \
                 --add-password="Powtórz hasło" \
-                --separator="$field_sep")
+                --separator="$field_sep" 2>/dev/null)
             ;;
         3)                                      # stare hasło; nowe hasło + powtórzenie
             pass=$(zenity \
@@ -148,7 +175,7 @@ get_pass() {
                 --add-password="Stare hasło" \
                 --add-password="Nowe hasło" \
                 --add-password="Powtórz nowe hasło" \
-                --separator="$field_sep")
+                --separator="$field_sep" 2>/dev/null)
             ;;
         4)                                      # treść pliku; nowe hasło + powtórzenie
             pass=$(zenity \
@@ -158,17 +185,18 @@ get_pass() {
                 --add-entry="Treść do zaszyfrowania" \
                 --add-password="Hasło" \
                 --add-password="Powtórz hasło" \
-                --separator="$field_sep")
+                --separator="$field_sep" 2>/dev/null)
             ;;
         *)
-            zenity --error --text="Funkcja: ${FUNCNAME[0]}: błąd parametru"
-            exit 1
+            exit_err "Funkcja: ${FUNCNAME[0]}: błąd parametru"
             ;;
     esac
-    [[ $? -eq 0 ]] || giveup
+    [[ $? -eq 0 ]] || give_up
 
+    # tylko hasło deszyfrujące
     if [ $mode -eq 1 ]; then
         eval $pass1="'$pass'"
+        #return -1
         return
     fi
 
@@ -177,26 +205,32 @@ get_pass() {
     IFS="$field_sep" pass_array=($pass)
     IFS=$oIFS
 
-    mode=1
     case $mode in
         2)                                      # nowe hasło + powtórzenie
+            [[ $tabs -gt 1 ]] && exit_err "??? tabs=$tabs"
+            field1=''
+            field2=${pass_array[0]}
+            field3=${pass_array[1]}
             ;;
-        3)                                      # stare hasło; nowe hasło + powtórzenie
-            ;;
-        4)                                      # treść pliku; nowe hasło + powtórzenie
+        3|4)                                      # stare hasło; nowe hasło + powtórzenie
+            [[ $tabs -gt 2 ]] && exit_err "??? tabs=$tabs"
+            field1=${pass_array[0]}
+            field2=${pass_array[1]}
+            field3=${pass_array[2]}
             ;;
     esac
-    if [ "${pass_array[0]}" != "${pass_array[1]}" ]; then
+    if [ "$field2" != "$field3" ]; then
         zenity --question  --title="Niezgodność haseł" --text="Niepoprawnie powtórzone hasło.$pp"
-        [[ $? -eq 0 ]] && return 1 || exit 2
+        [[ $? -eq 0 ]] && return 1 || give_up 0
     fi
 
-    if [ -z "${pass_array[0]}" ]; then
+    if [ -z "$field2" ]; then
         zenity --question  --title="Puste hasło" --text="Hasło nie może być \"puste\".$pp"
-        [[ $? -eq 0 ]] && return 1 || exit 2
+        [[ $? -eq 0 ]] && { echo qq; return 3; } || give_up 0
     fi
 
-    eval $pass2="'${pass_array[0]}'"
+    eval $pass1="'$field1'"
+    eval $pass2="'$field2'"
 }
 
 show_pass_file() {
@@ -231,8 +265,7 @@ file_de_en_crypt() {
             pass_mode=1
             ;;
         *) 
-            zenity --error --text="${FUNCNAME[*]}: błąd parametru"
-            exit 1
+            exit_err "${FUNCNAME[*]}: błąd parametru"
             ;;
     esac
 
@@ -259,7 +292,7 @@ file_de_en_crypt() {
 
     if $debug; then
         echo $dbgsep
-        echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" >&2
+        echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" #>&2
         echo "mode = $mode"
         echo "file = $file"
         echo "new_file = $new_file"
@@ -283,7 +316,14 @@ echo $cmd
 [[ -n "$crypted_file" ]] && { show_pass_file; exit; }
 #-------------------------------------------------------------------------------
 # 
-get_pass op np 5
+pass_ok=1
+until [ $pass_ok -eq 0 ]; do
+    get_pass op np 1
+    pass_ok=$?
+    echo "pass_ok $pass_ok"
+done
+echo "op $op"
+echo "np $np"
 exit
 #-------------------------------------------------------------------------------
 
