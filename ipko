@@ -197,7 +197,7 @@ get_pass() {
     # tylko hasło deszyfrujące
     if [ $mode -eq 1 ]; then
         eval $pass1="'$pass'"
-        #return -1
+        eval $rval='"0"'
         return
     fi
 
@@ -220,19 +220,26 @@ get_pass() {
             field3=${pass_array[2]}
             ;;
     esac
+
+    local _rval=0
     if [ "$field2" != "$field3" ]; then
         zenity --question  --title="Niezgodność haseł" --text="Niepoprawnie powtórzone hasło.$pp"
-        [[ $? -eq 0 ]] && return 1 || give_up 0
+        [[ $? -eq 0 ]] && _rval=1 || give_up 0
     fi
 
-    echo $field2
     if [ -z "$field2" ]; then
         zenity --question  --title="Puste hasło" --text="Hasło nie może być \"puste\".$pp"
-        [[ $? -eq 0 ]] && { echo "puste hasło"; eval $rval='"1"'; return; } || give_up 0
+        [[ $? -eq 0 ]] && _rval=1 || give_up 0
     fi
 
-    eval $pass1="'$field1'"
-    eval $pass2="'$field2'"
+    if [ $_rval -eq 1 ]; then
+        eval $rval='"1"'
+    else
+        eval $pass1="'$field1'"
+        eval $pass2="'$field2'"
+        eval $rval='"0"'
+        echo $pass1 $pass2 $rval
+    fi
 }
 
 show_pass_file() {
@@ -318,13 +325,10 @@ echo $cmd
 [[ -n "$crypted_file" ]] && { show_pass_file; exit; }
 #-------------------------------------------------------------------------------
 # 
-pass_ok=2
-rv=1
-until [ $rv -eq 0 ]; do
-    get_pass op np 2 rv
-    pass_ok=$?
+pass_ok=1
+until [ $pass_ok -eq 0 ]; do
+    get_pass op np 2 pass_ok
     echo "pass_ok $pass_ok"
-    echo "rv $rv"
 done
 echo "op $op"
 echo "np $np"
