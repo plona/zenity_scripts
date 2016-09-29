@@ -8,14 +8,14 @@ exec 2>"$stderr_log"
 
 exit_handler() {
 #    echo "exit code $?"
-    exit_code=$?
-    if [ $exit_code -ne 3 ]; then
+#    exit_code=$?
+#    if [ $exit_code -ne 3 ]; then
     zenity --text-info --title="Wystąpił błąd wewnętrzny:" --width=600 --height=300 --filename="$stderr_log"
-    rm -fv "$stderr_log"
-    else
-echo "exit_code $exit_code"
-return
-    fi
+#    rm -fv "$stderr_log"
+#    else
+#echo "exit_code $exit_code"
+#return
+#    fi
 }
 trap exit_handler EXIT
 trap exit ERR
@@ -151,6 +151,7 @@ get_pass() {
     local pass1=$1                              # hasło deszyfrujące (1,3) lub treść do zaszyfrowania (4)
     local pass2=$2                              # hasło szyfrujące (2,4)
     local -r mode=$3                            # tryb pracy [1|2|3|4]
+    local rval=$4
     local pass pass_array field1 field2 field3 oIFS tabs
     local -r pp=$"\nPonowić próbę?"
 
@@ -224,9 +225,10 @@ get_pass() {
         [[ $? -eq 0 ]] && return 1 || give_up 0
     fi
 
+    echo $field2
     if [ -z "$field2" ]; then
         zenity --question  --title="Puste hasło" --text="Hasło nie może być \"puste\".$pp"
-        [[ $? -eq 0 ]] && { echo qq; return 3; } || give_up 0
+        [[ $? -eq 0 ]] && { echo "puste hasło"; eval $rval='"1"'; return; } || give_up 0
     fi
 
     eval $pass1="'$field1'"
@@ -316,15 +318,17 @@ echo $cmd
 [[ -n "$crypted_file" ]] && { show_pass_file; exit; }
 #-------------------------------------------------------------------------------
 # 
-pass_ok=1
-until [ $pass_ok -eq 0 ]; do
-    get_pass op np 1
+pass_ok=2
+rv=1
+until [ $rv -eq 0 ]; do
+    get_pass op np 2 rv
     pass_ok=$?
     echo "pass_ok $pass_ok"
+    echo "rv $rv"
 done
 echo "op $op"
 echo "np $np"
-exit
+give_up 0
 #-------------------------------------------------------------------------------
 
 ans=$(zenity  \
