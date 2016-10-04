@@ -7,15 +7,8 @@ stderr_log="/dev/shm/stderr.log.$$"
 exec 2>"$stderr_log"
 
 exit_handler() {
-#    echo "exit code $?"
-#    exit_code=$?
-#    if [ $exit_code -ne 3 ]; then
     zenity --text-info --title="Wystąpił błąd wewnętrzny:" --width=600 --height=300 --filename="$stderr_log"
-#    rm -fv "$stderr_log"
-#    else
-#echo "exit_code $exit_code"
-#return
-#    fi
+    rm -fv "$stderr_log"
 }
 trap exit_handler EXIT
 trap exit ERR
@@ -197,7 +190,7 @@ get_pass() {
     # tylko hasło deszyfrujące
     if [ $mode -eq 1 ]; then
         eval $pass1="'$pass'"
-        eval $rval='"0"'
+        eval $rval='"true"'
         return
     fi
 
@@ -221,25 +214,20 @@ get_pass() {
             ;;
     esac
 
-    local _rval=0
+    local _rval=true
     if [ "$field2" != "$field3" ]; then
         zenity --question  --title="Niezgodność haseł" --text="Niepoprawnie powtórzone hasło.$pp"
-        [[ $? -eq 0 ]] && _rval=1 || give_up 0
+        [[ $? -eq 0 ]] && _rval=false || give_up 0
     fi
 
     if [ -z "$field2" ]; then
         zenity --question  --title="Puste hasło" --text="Hasło nie może być \"puste\".$pp"
-        [[ $? -eq 0 ]] && _rval=1 || give_up 0
+        [[ $? -eq 0 ]] && _rval=false || give_up 0
     fi
 
-    if [ $_rval -eq 1 ]; then
-        eval $rval='"1"'
-    else
-        eval $pass1="'$field1'"
-        eval $pass2="'$field2'"
-        eval $rval='"0"'
-        echo $pass1 $pass2 $rval
-    fi
+    eval $pass1="'$field1'"
+    eval $pass2="'$field2'"
+    eval $rval='"$_rval"'
 }
 
 show_pass_file() {
@@ -325,9 +313,10 @@ echo $cmd
 [[ -n "$crypted_file" ]] && { show_pass_file; exit; }
 #-------------------------------------------------------------------------------
 # 
-pass_ok=1
-until [ $pass_ok -eq 0 ]; do
-    get_pass op np 2 pass_ok
+pass_ok=false
+#until [ $pass_ok -eq 0 ]; do
+until $pass_ok; do
+    get_pass op np 4 pass_ok
     echo "pass_ok $pass_ok"
 done
 echo "op $op"
