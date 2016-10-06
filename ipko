@@ -83,10 +83,19 @@ var2tab() {
     local content cur_char
     for ((i=1; $i<=${#var}; i++)); do
         cur_char="${var:i-1:1}"
+        if [ "$cur_char" == " " ]; then
+            echo "spacja"
+#            cur_char='X'
+        fi
+#        cur_char=" $cur_char |"
+        cur_char=' '"$cur_char"' |'
+#        [[ "$cur_char" == " " ]] && cur_char="   " || cur_char=" $cur_char |"
+        echo '|'$cur_char'|' ${#cur_char}
         [[ $i -gt 9 ]] && col_heads+=" $i|" || col_heads+=" $i |"
         col_bar+='---+'
-        col_content+=" $cur_char |"
-        echo $col_content
+#        col_content+=" $cur_char |"
+        col_content+="$cur_char"
+#        echo $col_content
     done 
     content=$"$col_heads\n$col_bar\n$col_content\n"
     eval $rval="'$content'"
