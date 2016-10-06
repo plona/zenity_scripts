@@ -1,10 +1,16 @@
 #!/bin/bash
 
+debug=false
 #-------------------------------------------------------------------------------
 # error handling
 #-------------------------------------------------------------------------------
 stderr_log="/dev/shm/stderr.log.$$"
-exec 2>"$stderr_log"
+if $debug; then
+    set -v
+else
+    set +v
+    exec 2>"$stderr_log"
+fi
 
 exit_handler() {
     zenity --text-info --title="Wystąpił błąd wewnętrzny:" --width=600 --height=300 --filename="$stderr_log"
@@ -18,6 +24,7 @@ exit_err() {
     trap '' ERR
     trap '' EXIT
     zenity --error --text="$msg"
+    rm -fv "$stderr_log"
     exit 1
 }
 
@@ -26,6 +33,7 @@ give_up() {
     trap '' ERR
     trap '' EXIT
     [[ $# -eq 0 ]] && zenity --info --text="$ru"
+    rm -fv "$stderr_log"
     exit 2
 }
 
@@ -42,7 +50,6 @@ field_sep="$(printf '\t')"
 font='Courier New 10'
 
 usage() {
-    echo "In function $FUNCNAME: FUNCNAME=${FUNCNAME[0]}" >&2
     echo "Usage: $0 [-d star_dir] [-f file_do_decrypt]" 1>&2
     exit 1
 }
@@ -70,14 +77,16 @@ fi
 var2tab() {
     local var="$1"
     local rval=$2
-    local -r col_heads='|'
-    local -r col_bar='+'
-    local -r col_content='|'
-    local content
+    local col_heads='|'
+    local col_bar='+'
+    local col_content='|'
+    local content cur_char
     for ((i=1; $i<=${#var}; i++)); do
+        cur_char="${var:i-1:1}"
         [[ $i -gt 9 ]] && col_heads+=" $i|" || col_heads+=" $i |"
         col_bar+='---+'
-        col_content+=" ${var:i-1:1} |"
+        col_content+=" $cur_char |"
+        echo $col_content
     done 
     content=$"$col_heads\n$col_bar\n$col_content\n"
     eval $rval="'$content'"
@@ -235,7 +244,7 @@ show_pass_file() {
 
     [[ -n "$crypted_file" ]] && file="$crypted_file" || get_file file "*.enc"
 
-    get_pass passwd dummy 1
+    get_pass passwd dummy 1 dummy
 
     cmd="openssl enc -d -$cipher -in \"$file\" -salt -k \"$passwd\" 2>/dev/null"
     file_contain=$(eval "$cmd") || { zenity --error --text="Niepoprawne hasło"; exit 2; }
@@ -246,20 +255,18 @@ show_pass_file() {
 
 file_de_en_crypt() {
     local mode=$1
-    local ext file new_file selected_file passwd cmd msg1 msg2 pass_mode
+    local ext file new_file selected_file passwd cmd msg1 msg2
 
     case $mode in
         e) 
             ext=''
             msg1='Nieznany błąd szyfrowania pliku.'
             msg2='niezaszyfrowany'
-            pass_mode=2
             ;;
         d) 
             ext='*.enc'
             msg1="Błędne hasło lub\nnieznany błąd deszyfracji pliku."
             msg2='zaszyfrowany'
-            pass_mode=1
             ;;
         *) 
             exit_err "${FUNCNAME[*]}: błąd parametru"
@@ -269,13 +276,13 @@ file_de_en_crypt() {
     get_file file $ext
     if [ $mode == "d" ]; then                   # deszyfracja
         split_base_ext "$file" new_file dummy
-        get_pass passwd dummy 1
+        get_pass passwd dummy 1 dummy
     else                                        # szyfrowanie
         new_file="$file.enc"
-        local get_pass_ok=1
-        until [ $get_pass_ok -eq 0 ]; do
-            get_pass dummy passwd $pass_mode
-            get_pass_ok=$?
+        local get_pass_ok=false
+        until $get_pass_ok; do
+            get_pass dummy passwd 2 get_pass_ok
+#            get_pass_ok=$?
         done
     fi
 
@@ -313,15 +320,14 @@ echo $cmd
 [[ -n "$crypted_file" ]] && { show_pass_file; exit; }
 #-------------------------------------------------------------------------------
 # 
-pass_ok=false
-#until [ $pass_ok -eq 0 ]; do
-until $pass_ok; do
-    get_pass op np 4 pass_ok
-    echo "pass_ok $pass_ok"
-done
-echo "op $op"
-echo "np $np"
-give_up 0
+#pass_ok=false
+#until $pass_ok; do
+#    get_pass op np 4 pass_ok
+#    echo "pass_ok $pass_ok"
+#done
+#echo "op $op"
+#echo "np $np"
+#give_up 0
 #-------------------------------------------------------------------------------
 
 ans=$(zenity  \
@@ -346,6 +352,7 @@ case $ans in
     show_pass_file)
         echo "pokaż hasło"
         show_pass_file
+        give_up 0
         ;;
     new_pass_file)
         echo "Nowy zaszyfrowany plik"
