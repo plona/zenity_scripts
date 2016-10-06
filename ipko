@@ -6,9 +6,8 @@ debug=false
 #-------------------------------------------------------------------------------
 stderr_log="/dev/shm/stderr.log.$$"
 if $debug; then
-    set -v
+    set -vx
 else
-    set +v
     exec 2>"$stderr_log"
 fi
 
@@ -62,15 +61,6 @@ while getopts "d:f:" o; do
     esac
 done
 shift $(($OPTIND-1))
-
-if $debug; then
-    echo $dbgsep
-    echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" #>&2
-    echo "secret_dir = $secret_dir"
-    echo "crypted_file = $crypted_file"
-    echo $dbgsep
-fi
-
 #-------------------------------------------------------------------------------
 # functions
 #-------------------------------------------------------------------------------
@@ -84,18 +74,13 @@ var2tab() {
     for ((i=1; $i<=${#var}; i++)); do
         cur_char="${var:i-1:1}"
         if [ "$cur_char" == " " ]; then
-            echo "spacja"
-#            cur_char='X'
+            cur_char='_ _|'
+        else
+            cur_char=" $cur_char |"
         fi
-#        cur_char=" $cur_char |"
-        cur_char=' '"$cur_char"' |'
-#        [[ "$cur_char" == " " ]] && cur_char="   " || cur_char=" $cur_char |"
-        echo '|'$cur_char'|' ${#cur_char}
         [[ $i -gt 9 ]] && col_heads+=" $i|" || col_heads+=" $i |"
         col_bar+='---+'
-#        col_content+=" $cur_char |"
         col_content+="$cur_char"
-#        echo $col_content
     done 
     content=$"$col_heads\n$col_bar\n$col_content\n"
     eval $rval="'$content'"
@@ -147,13 +132,6 @@ split_base_ext() {
         fi
     fi
 
-    if $debug; then
-        echo $dbgsep
-        echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" #>&2
-        echo "file = $file"
-        echo "base = $base"
-        echo "ext = $ext"
-    fi
     eval $file_base="'$base'"
     eval $file_ext="'$ext'"
 }
@@ -256,10 +234,12 @@ show_pass_file() {
     get_pass passwd dummy 1 dummy
 
     cmd="openssl enc -d -$cipher -in \"$file\" -salt -k \"$passwd\" 2>/dev/null"
-    file_contain=$(eval "$cmd") || { zenity --error --text="Niepoprawne hasło"; exit 2; }
+    file_contain=$(eval "$cmd") ||  exit_err "Niepoprawne hasło"
 
     var2tab "$file_contain" display_text
     echo -ne ${display_text} | zenity --title="Top Secret!" --width=1024 --height=300 --text-info  --font="$font"
+    echo
+    return
 }
 
 file_de_en_crypt() {
@@ -303,15 +283,6 @@ file_de_en_crypt() {
         [[ $? -eq 0 ]] && new_file="$selected_file" || { zenity --info --text="$ru"; exit 2; }
     fi
 
-    if $debug; then
-        echo $dbgsep
-        echo "In function $FUNCNAME: FUNCNAME = ${FUNCNAME[*]}" #>&2
-        echo "mode = $mode"
-        echo "file = $file"
-        echo "new_file = $new_file"
-        echo $dbgsep
-    fi
-
     cmd="openssl enc -$mode -$cipher -in \"$file\" -out \"$new_file\" -salt -k \"$passwd\""
 #-------------------------------------------------------------------------------
 echo $cmd
@@ -326,7 +297,7 @@ echo $cmd
     fi
 }
 
-[[ -n "$crypted_file" ]] && { show_pass_file; exit; }
+[[ -n "$crypted_file" ]] && { show_pass_file; give_up 0; }
 #-------------------------------------------------------------------------------
 # 
 #pass_ok=false
@@ -361,7 +332,6 @@ case $ans in
     show_pass_file)
         echo "pokaż hasło"
         show_pass_file
-        give_up 0
         ;;
     new_pass_file)
         echo "Nowy zaszyfrowany plik"
