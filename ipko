@@ -252,6 +252,12 @@ get_pass() {
     eval $rval='"$_rval"'
 }
 
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  show_pass_file
+#   DESCRIPTION:  wyświetla treść zaszyfrowanego pliku
+#    PARAMETERS:  
+#       RETURNS:  
+#-------------------------------------------------------------------------------
 show_pass_file() {
     local passwd cmd file_contain display_text file
 
@@ -273,8 +279,14 @@ show_pass_file() {
     return
 }
 
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  file_de_en_crypt
+#   DESCRIPTION:  szyfrowanie/deszyfracja pliku
+#    PARAMETERS:  
+#       RETURNS:  
+#-------------------------------------------------------------------------------
 file_de_en_crypt() {
-    local mode=$1
+    local -r mode=$1
     local ext file new_file selected_file passwd cmd msg1 msg2
 
     case $mode in
@@ -309,7 +321,7 @@ file_de_en_crypt() {
         selected_file=$(zenity --file-selection \
                         --filename="$new_file" \
                         --save \
-                        --confirm-overwrite)
+                        --confirm-overwrite) 2>/dev/null
         [[ $? -eq 0 ]] && new_file="$selected_file" || give_up
     fi
 
@@ -318,13 +330,16 @@ file_de_en_crypt() {
 echo $cmd
 #  # :TODO:23.09.2016 21:46:12:marekpl: przy deszyfracji sprawdzać kod wyjścia i inny komunikat
 #-------------------------------------------------------------------------------
-    eval "$cmd" || { zenity --error --text="$msg1"; exit 1; }
+    eval "$cmd" || exit_err "$msg1"
 
-    zenity --question --title "Usunąć $msg2 plik?" --text="Usunąć plik:\n$file"
+    zenity --question --title "Usunąć $msg2 plik?" --text="Usunąć plik:\n$file" 2>/dev/null
     if [ $? -eq 0 ]; then
         cmd="rm -fv \"$file\""
-        zenity --info --text="$(eval ${cmd})"
+        zenity --info --text="$(eval ${cmd})" 2>/dev/null
+        true
     fi
+
+#    return
 }
 
 [[ -n "$crypted_file" ]] && { show_pass_file; give_up 0; }
@@ -356,7 +371,7 @@ ans=$(zenity  \
     FALSE "pwchange" "Zmiana hasła do pliku" \
     --hide-column=2 \
     --width=350 \
-    --height=200)
+    --height=200) 2>/dev/null
 
 trap exit_handler EXIT
 trap exit ERR
