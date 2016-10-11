@@ -381,22 +381,40 @@ file_de_en_crypt() {
     fi
 }
 
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  pwchange
+#   DESCRIPTION:  zmiana hasła do pliku
+#    PARAMETERS:  
+#       RETURNS:  
 #-------------------------------------------------------------------------------
-# 
+pwchange()
+{
+    local oldpass newpass file cmd file_contain
+
+    get_file file "*.enc"
+
+    local get_pass_ok=false
+    until $get_pass_ok; do
+        get_pass oldpass newpass 3 get_pass_ok
+    done
+
+    cmd="openssl enc -d -$cipher -in \"$file\" -salt -k \"$oldpass\" 2>/dev/null"
+    file_contain=$(eval "$cmd") ||  exit_err "Niepoprawne stare hasło"
+
+    cmd="echo \"$file_contain\" | openssl enc -e -$cipher -out \"$file\" -salt -k \"$newpass\""
+    eval "$cmd"
+    zenity --info \
+        --text="Hasło do pliku:\n$file\nzostało pomyślnie zmienione." 2>/dev/null
+}    # ----------  end of function pwchange  ----------
 #-------------------------------------------------------------------------------
-[[ -n "$crypted_file" ]] && { show_pass_file; give_up 0; }
-#-------------------------------------------------------------------------------
-# 
-#pass_ok=false
-#until $pass_ok; do
-#    get_pass op np 4 pass_ok
-#    echo "pass_ok $pass_ok"
-#done
-#echo "op $op"
-#echo "np $np"
-#new_pass_fil
-#give_up 0
-#-------------------------------------------------------------------------------
+
+[[ -n "$crypted_file" ]] && {
+    trap exit_handler EXIT
+    trap exit ERR
+    show_pass_file
+    give_up 0
+}
 
 ans=$(zenity  \
     --list  \
@@ -433,7 +451,8 @@ case $ans in
         file_de_en_crypt 'e'
         ;;
     pwchange)
-        zenity --info --text="zmiana hasła do pliku"
+#        zenity --info --text="zmiana hasła do pliku"
+        pwchange
         ;;
     *)
         give_up 0
