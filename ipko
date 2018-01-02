@@ -48,7 +48,7 @@ secret_dir="$HOME/"
 
 cipher='aes-256-cbc'
 field_sep="$(printf '\t')"
-font='Courier New 10'
+font='Courier New 18'
 
 usage() {
     echo "Usage: $0 [-d star_dir] [-f file_do_decrypt]" 1>&2
