@@ -274,13 +274,15 @@ show_pass_file() {
     cmd="openssl enc -d -$cipher -in \"$file\" -salt -k \"$passwd\" 2>/dev/null"
     file_contain=$(eval "$cmd") ||  exit_err "Niepoprawne hasło"
 
-    var2tab "$file_contain" display_text
-    echo -ne ${display_text} | \
-        zenity --text-info \
-            --title="Top Secret!" \
-            --width=1024 \
-            --height=300 \
-            --font="$font" 2>/dev/null
+    set -f
+        var2tab "$file_contain" display_text
+        echo -ne ${display_text} | \
+            zenity --text-info \
+                --title="Top Secret!" \
+                --width=1024 \
+                --height=300 \
+                --font="$font" 2>/dev/null
+    set +f
     true
     return
 }
